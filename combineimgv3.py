@@ -3,6 +3,7 @@ import glob
 import sys
 import os
 import argparse
+import tempfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -174,9 +175,11 @@ class ImageCombinerGUI:
         # Data storage
         self.images = []
         self.image_sizes = {}
+        self.image_sources = {}  # maps actual image path to display origin (file/page)
         self.preview_images = []
         self.current_preview_image = None
         self.current_output_preview = None
+        self.temp_images = []  # temporary extracted PDF page images
         
         # UI Variables
         self.direction = tk.StringVar(value="horizontal")
@@ -518,14 +521,16 @@ class ImageCombinerGUI:
     # ==================== IMAGE MANAGEMENT FUNCTIONS ====================
     
     def add_image_to_list(self, image_path):
-        """Add image to listbox with dimensions"""
+        """Add image to listbox with dimensions and source info"""
         try:
             img = Image.open(image_path)
-            self.listbox.insert(tk.END, f"{os.path.basename(image_path)} ({img.size[0]}x{img.size[1]})")
+            display_name = self.image_sources.get(image_path, os.path.basename(image_path))
+            self.listbox.insert(tk.END, f"{display_name} ({img.size[0]}x{img.size[1]})")
             self.image_sizes[image_path] = img.size
             return True
         except Exception as e:
-            self.listbox.insert(tk.END, f"{os.path.basename(image_path)} (Error loading)")
+            display_name = self.image_sources.get(image_path, os.path.basename(image_path))
+            self.listbox.insert(tk.END, f"{display_name} (Error loading)")
             return False
     
     def refresh_listbox(self):
@@ -845,18 +850,24 @@ class ImageCombinerGUI:
             filetypes=[
                 ("JPEG files", "*.jpg"),
                 ("PNG files", "*.png"),
+                ("PDF files", "*.pdf"),
                 ("All files", "*.*")
             ]
         )
         
         if output_file:
             try:
-                if output_file.lower().endswith('.jpg') or output_file.lower().endswith('.jpeg'):
+                lower_output = output_file.lower()
+                if lower_output.endswith('.jpg') or lower_output.endswith('.jpeg'):
                     if image.mode != 'RGB':
                         image = image.convert('RGB')
                     image.save(output_file, 'JPEG', quality=95)
-                elif output_file.lower().endswith('.png'):
+                elif lower_output.endswith('.png'):
                     image.save(output_file, 'PNG')
+                elif lower_output.endswith('.pdf'):
+                    if image.mode != 'RGB':
+                        image = image.convert('RGB')
+                    image.save(output_file, 'PDF', resolution=100.0, save_all=True)
                 else:
                     image = image.convert('RGB')
                     image.save(output_file, 'JPEG')
@@ -870,18 +881,39 @@ class ImageCombinerGUI:
     # ==================== EVENT HANDLERS ====================
     
     def on_add_images(self):
-        """Handle add images button click"""
+        """Handle add images and PDFs button click"""
         files = filedialog.askopenfilenames(
-            title="Select Images",
-            filetypes=[("Image files", "*.jpg *.jpeg *.png *.JPG *.JPEG *.PNG")]
+            title="Select Images/PDFs",
+            filetypes=[("Image/PDF files", "*.jpg *.jpeg *.png *.JPG *.JPEG *.PNG *.pdf")]
         )
         
         added = 0
         for f in files:
-            if f not in self.images:
-                self.images.append(f)
-                if self.add_image_to_list(f):
-                    added += 1
+            ext = os.path.splitext(f)[1].lower()
+            if ext == '.pdf':
+                try:
+                    with Image.open(f) as pdf:
+                        pages = getattr(pdf, 'n_frames', 1)
+                        for p in range(pages):
+                            pdf.seek(p)
+                            page_image = pdf.convert('RGB')
+                            temp_file = os.path.join(tempfile.gettempdir(),
+                                                     f"combineimg_{os.path.basename(f)}_page{p+1}.png")
+                            page_image.save(temp_file, 'PNG')
+                            if temp_file not in self.images:
+                                self.images.append(temp_file)
+                                self.temp_images.append(temp_file)
+                                self.image_sources[temp_file] = f"{os.path.basename(f)} [Page {p+1}]"
+                                if self.add_image_to_list(temp_file):
+                                    added += 1
+                except Exception as e:
+                    messagebox.showwarning("PDF Import", f"Unable to open PDF {f}: {e}")
+            else:
+                if f not in self.images:
+                    self.images.append(f)
+                    self.image_sources[f] = os.path.basename(f)
+                    if self.add_image_to_list(f):
+                        added += 1
         
         if added > 0:
             self.update_status(f"Added {added} images. Total: {len(self.images)}")
@@ -893,7 +925,18 @@ class ImageCombinerGUI:
         selection = self.listbox.curselection()
         if selection:
             index = selection[0]
-            self.images.pop(index)
+            removed_path = self.images.pop(index)
+            if removed_path in self.temp_images:
+                try:
+                    os.remove(removed_path)
+                except OSError:
+                    pass
+                self.temp_images.remove(removed_path)
+            if removed_path in self.image_sources:
+                del self.image_sources[removed_path]
+            if removed_path in self.image_sizes:
+                del self.image_sizes[removed_path]
+
             self.listbox.delete(index)
             self.update_status(f"Removed image. Total: {len(self.images)}")
             self.update_size_info()
@@ -908,7 +951,15 @@ class ImageCombinerGUI:
     def on_clear_all(self):
         """Handle clear all button click"""
         if self.images and messagebox.askyesno("Confirm", "Clear all images?"):
+            for temp_path in list(self.temp_images):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            self.temp_images.clear()
             self.images = []
+            self.image_sources.clear()
+            self.image_sizes.clear()
             self.listbox.delete(0, tk.END)
             self.update_status("Cleared all images")
             self.update_size_info()
@@ -1099,20 +1150,28 @@ def cli_mode():
     # Otherwise run CLI version
     direction = 'vertical' if args.vertical else 'horizontal'
     
-    patterns = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
-    images = []
+    patterns = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG', '*.pdf']
+    files = []
     for pattern in patterns:
-        images.extend([f for f in glob.glob(f'./{pattern}') 
+        files.extend([f for f in glob.glob(f'./{pattern}') 
                       if 'combined' not in f.lower()])
     
-    images = sorted(list(set(images)))
+    files = sorted(list(set(files)))
     
-    if not images:
-        print("No images found!")
+    if not files:
+        print("No images or PDFs found!")
         return 1
     
     try:
-        imgs = [Image.open(f) for f in images]
+        imgs = []
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext == '.pdf':
+                with Image.open(f) as pdf:
+                    pdf.seek(0)
+                    imgs.append(pdf.convert('RGB').copy())
+            else:
+                imgs.append(Image.open(f))
         
         if direction == 'horizontal':
             total_width = sum(i.width for i in imgs)
@@ -1140,7 +1199,7 @@ def cli_mode():
             new_img = new_img.convert('RGB')
         
         new_img.save(output_file, format=args.format.upper())
-        print(f"Successfully combined {len(images)} images {direction}ly!")
+        print(f"Successfully combined {len(files)} images {direction}ly!")
         print(f"Output saved as: {output_file}")
         
     except Exception as e:

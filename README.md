@@ -1,3 +1,7 @@
+# Design Idea
+
+A user request to create a one page picture by combining different picture(s) or pdf(s) together. 
+
 # Image Combiner v3 - Complete Feature Guide
 
 A powerful GUI application for combining multiple images horizontally or vertically with advanced preview and zoom capabilities.
@@ -8,7 +12,7 @@ A powerful GUI application for combining multiple images horizontally or vertica
 - **Horizontal/Vertical Layout**: Combine images side-by-side or stacked
 - **Order Management**: Reorder images with up/down buttons
 - **Batch Processing**: Add multiple images at once
-- **Format Support**: JPEG, PNG, and other common formats
+- **Format Support**: JPEG, PNG, PDF (via first-page import) and other common formats
 
 ### Advanced Preview System
 - **Dual Preview Tabs**:
@@ -123,6 +127,7 @@ Shows detailed information for the currently selected image:
 3. **Configure Layout**:
    - Choose "Horizontal" or "Vertical" direction
    - Reorder images using ↑↓ buttons if needed
+   - Imported PDF pages appear as separate items (PDF page 1, page 2, ...)
 
 4. **Preview Images**:
    - Click any image in the list to preview individually
