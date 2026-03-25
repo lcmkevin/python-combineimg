@@ -191,6 +191,7 @@ class ImageCombinerGUI:
         
         # Initialize empty state
         self.update_size_info()
+        self.file_info_label.configure(text="Select an image to see details")
     
     # ==================== UI SETUP FUNCTIONS ====================
     
@@ -222,6 +223,9 @@ class ImageCombinerGUI:
         
         # Size info section
         self.setup_size_info_section(left_frame)
+        
+        # File info section
+        self.setup_file_info_section(left_frame)
     
     def setup_control_section(self, parent):
         """Setup control buttons and direction selection"""
@@ -282,6 +286,14 @@ class ImageCombinerGUI:
         
         self.size_info_label = ttk.Label(size_frame, text="", justify=tk.LEFT)
         self.size_info_label.pack(anchor=tk.W)
+    
+    def setup_file_info_section(self, parent):
+        """Setup file information display"""
+        file_frame = ttk.LabelFrame(parent, text="File Information", padding="10")
+        file_frame.pack(fill=tk.X, pady=5, padx=5)
+        
+        self.file_info_label = ttk.Label(file_frame, text="", justify=tk.LEFT)
+        self.file_info_label.pack(anchor=tk.W)
     
     def setup_right_panel(self):
         """Setup right panel with preview tabs"""
@@ -645,7 +657,10 @@ class ImageCombinerGUI:
             info_text += f"🖱️ Use buttons or Ctrl+Scroll to zoom\n"
             info_text += f"💡 Hold Shift + Scroll for horizontal scrolling"
             
-            self.selected_preview_label.configure(image=photo, text=info_text, compound=tk.TOP)
+            # Update file info in bottom panel instead of preview
+            self.file_info_label.configure(text=info_text)
+            
+            self.selected_preview_label.configure(image=photo, text="", compound=tk.TOP)
             self.selected_preview_label.image = photo
             
             # Enable full screen button
@@ -666,6 +681,7 @@ class ImageCombinerGUI:
             
         except Exception as e:
             self.selected_preview_label.configure(text=f"Error loading image:\n{str(e)}", image="")
+            self.file_info_label.configure(text="Error loading image details")
             self.update_status("Error loading preview")
     
     def show_selected_preview_fit(self, image_path):
@@ -869,6 +885,7 @@ class ImageCombinerGUI:
         
         if added > 0:
             self.update_status(f"Added {added} images. Total: {len(self.images)}")
+            self.update_size_info()
             self.update_output_preview()
     
     def on_remove_selected(self):
@@ -879,6 +896,7 @@ class ImageCombinerGUI:
             self.images.pop(index)
             self.listbox.delete(index)
             self.update_status(f"Removed image. Total: {len(self.images)}")
+            self.update_size_info()
             
             if not self.images:
                 self.clear_previews()
@@ -893,6 +911,7 @@ class ImageCombinerGUI:
             self.images = []
             self.listbox.delete(0, tk.END)
             self.update_status("Cleared all images")
+            self.update_size_info()
             self.clear_previews()
     
     def on_move_up(self):
@@ -904,6 +923,7 @@ class ImageCombinerGUI:
             self.refresh_listbox()
             self.listbox.selection_set(index-1)
             self.update_status("Moved image up")
+            self.update_size_info()
             self.update_output_preview()
             self.on_image_select(None)
     
@@ -916,6 +936,7 @@ class ImageCombinerGUI:
             self.refresh_listbox()
             self.listbox.selection_set(index+1)
             self.update_status("Moved image down")
+            self.update_size_info()
             self.update_output_preview()
             self.on_image_select(None)
     
@@ -1039,6 +1060,7 @@ class ImageCombinerGUI:
         self.output_preview_label.configure(text="Add images to see preview", image="")
         self.preview_info_label.configure(text="")
         self.size_info_label.configure(text="No images loaded")
+        self.file_info_label.configure(text="Select an image to see details")
         self.selected_fullscreen_btn.configure(state=tk.DISABLED)
         self.output_fullscreen_btn.configure(state=tk.DISABLED)
         # Reset zoom
