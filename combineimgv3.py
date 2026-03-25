@@ -1,4 +1,4 @@
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 import glob
 import sys
 import os
@@ -128,10 +128,23 @@ class FullScreenPreview:
     def display_image(self, pil_image):
         """Display PIL image"""
         self.pil_image = pil_image
-        photo = ImageTk.PhotoImage(pil_image)
+
+        # Ensure full image fits on screen in fullscreen window
+        self.window.update_idletasks()
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+
+        display_img = pil_image
+        if pil_image.width > screen_width or pil_image.height > screen_height:
+            display_img = ImageOps.contain(pil_image, (screen_width, screen_height))
+
+        photo = ImageTk.PhotoImage(display_img)
         self.photo_image = photo
         self.image_label.configure(image=photo, text="")
         self.image_label.image = photo
+
+        if display_img.size != pil_image.size:
+            self.info_label.configure(text=f"Showing scaled image: {display_img.size[0]}x{display_img.size[1]} (original {pil_image.size[0]}x{pil_image.size[1]})")
         
         # Update scroll region
         self.image_frame.update_idletasks()
@@ -167,6 +180,11 @@ class ImageCombinerGUI:
         
         # UI Variables
         self.direction = tk.StringVar(value="horizontal")
+        
+        # Zoom state tracking - stores zoom % per image path
+        self.selected_zoom = tk.DoubleVar(value=100.0)
+        self.output_zoom = tk.DoubleVar(value=100.0)
+        self.zoom_levels = {}  # Store zoom level per image path
         
         # Setup UI components
         self.setup_ui()
@@ -319,14 +337,27 @@ class ImageCombinerGUI:
         button_frame = ttk.Frame(self.selected_image_frame)
         button_frame.pack(pady=5)
         
-        self.selected_preview_label = ttk.Label(self.selected_image_frame, text="Select an image from the list")
-        self.selected_preview_label.pack(padx=10, pady=10)
-        
-        # Full screen button
         self.selected_fullscreen_btn = ttk.Button(button_frame, text="🔍 Full Screen Preview", 
                                                    command=self.show_selected_fullscreen,
                                                    state=tk.DISABLED)
-        self.selected_fullscreen_btn.pack()
+        self.selected_fullscreen_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Zoom control buttons
+        ttk.Button(button_frame, text="🔍- Zoom Out", 
+                  command=self.on_selected_zoom_out).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Fit", 
+                  command=self.on_selected_set_zoom_fit).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="100%", 
+                  command=self.on_selected_set_zoom_100).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Zoom In 🔍+", 
+                  command=self.on_selected_zoom_in).pack(side=tk.LEFT, padx=2)
+        
+        # Zoom level label
+        self.selected_zoom_label = ttk.Label(button_frame, text="100%", width=5)
+        self.selected_zoom_label.pack(side=tk.LEFT, padx=5)
+        
+        self.selected_preview_label = ttk.Label(self.selected_image_frame, text="Select an image from the list")
+        self.selected_preview_label.pack(padx=10, pady=10)
         
         # Update scroll region when frame changes
         self.selected_image_frame.bind("<Configure>", self.on_selected_frame_configure)
@@ -370,14 +401,27 @@ class ImageCombinerGUI:
         button_frame = ttk.Frame(self.output_image_frame)
         button_frame.pack(pady=5)
         
-        self.output_preview_label = ttk.Label(self.output_image_frame, text="Add images to see preview")
-        self.output_preview_label.pack(padx=10, pady=10)
-        
-        # Full screen button
         self.output_fullscreen_btn = ttk.Button(button_frame, text="🔍 Full Screen Preview", 
                                                  command=self.show_output_fullscreen,
                                                  state=tk.DISABLED)
-        self.output_fullscreen_btn.pack()
+        self.output_fullscreen_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Zoom control buttons
+        ttk.Button(button_frame, text="🔍- Zoom Out", 
+                  command=self.on_output_zoom_out).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Fit", 
+                  command=self.on_output_set_zoom_fit).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="100%", 
+                  command=self.on_output_set_zoom_100).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Zoom In 🔍+", 
+                  command=self.on_output_zoom_in).pack(side=tk.LEFT, padx=2)
+        
+        # Zoom level label
+        self.output_zoom_label = ttk.Label(button_frame, text="100%", width=5)
+        self.output_zoom_label.pack(side=tk.LEFT, padx=5)
+        
+        self.output_preview_label = ttk.Label(self.output_image_frame, text="Add images to see preview")
+        self.output_preview_label.pack(padx=10, pady=10)
         
         # Output preview info
         self.preview_info_frame = ttk.LabelFrame(output_tab, text="Preview Information", padding="5")
@@ -393,9 +437,20 @@ class ImageCombinerGUI:
         self.bind_mouse_wheel(self.output_canvas)
     
     def bind_mouse_wheel(self, canvas):
-        """Bind mouse wheel scrolling with shift for horizontal scroll"""
+        """Bind mouse wheel scrolling with shift for horizontal scroll and Ctrl for zoom"""
         def on_mousewheel(event):
-            if event.state & 0x1:  # Shift key pressed for horizontal scroll
+            if event.state & 0x4:  # Ctrl key pressed for zoom
+                if canvas == self.selected_canvas:
+                    if event.delta > 0:
+                        self.on_selected_zoom_in()
+                    else:
+                        self.on_selected_zoom_out()
+                elif canvas == self.output_canvas:
+                    if event.delta > 0:
+                        self.on_output_zoom_in()
+                    else:
+                        self.on_output_zoom_out()
+            elif event.state & 0x1:  # Shift key pressed for horizontal scroll
                 canvas.xview_scroll(int(-1*(event.delta/120)), "units")
             else:  # Normal vertical scroll
                 canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -509,11 +564,66 @@ class ImageCombinerGUI:
     
     # ==================== PREVIEW FUNCTIONS ====================
     
+    def fit_image_to_canvas(self, pil_image, canvas, margin=24):
+        """Scale image to fit inside canvas while keeping aspect ratio."""
+        canvas.update_idletasks()
+        max_width = canvas.winfo_width() - margin
+        max_height = canvas.winfo_height() - margin
+
+        if max_width <= 0 or max_height <= 0:
+            max_width = self.root.winfo_width() - margin
+            max_height = self.root.winfo_height() - margin
+
+        max_width = max(1, max_width)
+        max_height = max(1, max_height)
+
+        if pil_image.width > max_width or pil_image.height > max_height:
+            return ImageOps.contain(pil_image, (max_width, max_height))
+        return pil_image
+
+    def apply_zoom_to_image(self, pil_image, zoom_percent):
+        """Apply zoom percentage to image with aspect ratio preservation."""
+        if zoom_percent <= 0 or zoom_percent == 100:
+            return pil_image
+        
+        new_width = int(pil_image.width * zoom_percent / 100)
+        new_height = int(pil_image.height * zoom_percent / 100)
+        
+        # Ensure minimum size
+        new_width = max(1, new_width)
+        new_height = max(1, new_height)
+        
+        return pil_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    def apply_zoom_based_on_mode(self, pil_image, canvas, zoom_mode):
+        """Apply zoom based on preset mode: 'fit', '100%', or 'actual'."""
+        if zoom_mode == 'fit':
+            return self.fit_image_to_canvas(pil_image, canvas)
+        elif zoom_mode == '100%':
+            return pil_image
+        elif zoom_mode == 'actual':
+            # Fit to canvas if larger than canvas
+            return self.fit_image_to_canvas(pil_image, canvas)
+        return pil_image
+
     def show_selected_preview(self, image_path):
-        """Show preview of selected image at full quality with scrolling"""
+        """Show preview of selected image with zoom level support"""
         try:
             img = Image.open(image_path)
-            photo = ImageTk.PhotoImage(img)
+            
+            # Check zoom level for this image
+            zoom_level = self.zoom_levels.get(image_path, 100.0)
+            self.selected_zoom.set(zoom_level)
+            
+            # Apply zoom if not 100%
+            if zoom_level != 100:
+                display_img = self.apply_zoom_to_image(img, zoom_level)
+                self.selected_zoom_label.configure(text=f"{int(zoom_level)}%")
+            else:
+                display_img = self.fit_image_to_canvas(img, self.selected_canvas)
+                self.selected_zoom_label.configure(text="Fit")
+            
+            photo = ImageTk.PhotoImage(display_img)
             
             self.current_preview_image = photo
             self.current_preview_path = image_path
@@ -526,10 +636,13 @@ class ImageCombinerGUI:
             else:
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
+            displayed_w, displayed_h = display_img.size
             info_text = f"📷 {os.path.basename(image_path)}\n"
-            info_text += f"📏 Dimensions: {img.size[0]} x {img.size[1]} pixels\n"
+            info_text += f"📏 Original: {img.size[0]} x {img.size[1]} pixels\n"
+            if (displayed_w, displayed_h) != img.size:
+                info_text += f"📐 Displayed: {displayed_w} x {displayed_h} pixels\n"
             info_text += f"💾 File Size: {size_str}\n"
-            info_text += f"🖱️ Use scrollbars to view full image\n"
+            info_text += f"🖱️ Use buttons or Ctrl+Scroll to zoom\n"
             info_text += f"💡 Hold Shift + Scroll for horizontal scrolling"
             
             self.selected_preview_label.configure(image=photo, text=info_text, compound=tk.TOP)
@@ -554,6 +667,14 @@ class ImageCombinerGUI:
         except Exception as e:
             self.selected_preview_label.configure(text=f"Error loading image:\n{str(e)}", image="")
             self.update_status("Error loading preview")
+    
+    def show_selected_preview_fit(self, image_path):
+        """Show selected preview in fit-to-window mode (100% zoom)"""
+        self.selected_zoom.set(100.0)
+        self.selected_zoom_label.configure(text="Fit")
+        if image_path in self.zoom_levels:
+            del self.zoom_levels[image_path]
+        self.show_selected_preview(image_path)
     
     def generate_output_preview(self):
         """Generate the output preview image"""
@@ -596,7 +717,7 @@ class ImageCombinerGUI:
         return preview_img, info
     
     def update_output_preview(self):
-        """Update the output preview display"""
+        """Update the output preview display with zoom support"""
         if not self.images:
             self.output_preview_label.configure(text="Add images to see preview", image="")
             self.preview_info_label.configure(text="")
@@ -610,13 +731,28 @@ class ImageCombinerGUI:
             preview_img, info = self.generate_output_preview()
             
             if preview_img:
-                photo = ImageTk.PhotoImage(preview_img)
-                self.current_output_preview = photo
                 self.current_output_image = preview_img
+                
+                # Apply zoom level
+                zoom_level = self.output_zoom.get()
+                if zoom_level != 100:
+                    display_img = self.apply_zoom_to_image(preview_img, zoom_level)
+                    self.output_zoom_label.configure(text=f"{int(zoom_level)}%")
+                else:
+                    display_img = self.fit_image_to_canvas(preview_img, self.output_canvas)
+                    self.output_zoom_label.configure(text="Fit")
+                
+                photo = ImageTk.PhotoImage(display_img)
+                self.current_output_preview = photo
                 self.preview_images.append(photo)
                 
                 self.output_preview_label.configure(image=photo, text="", compound=tk.TOP)
                 self.output_preview_label.image = photo
+                
+                # Add info about scaling
+                if display_img.size != preview_img.size:
+                    info += f"\n📐 Display: {display_img.size[0]} x {display_img.size[1]} pixels (original {preview_img.size[0]} x {preview_img.size[1]})"
+                info += f"\n🔍 Zoom: {int(zoom_level)}% | Use buttons or Ctrl+Scroll to zoom"
                 self.preview_info_label.configure(text=info)
                 
                 # Enable full screen button
@@ -795,6 +931,74 @@ class ImageCombinerGUI:
         """Handle direction change"""
         self.update_output_preview()
     
+    # ==================== ZOOM HANDLERS ====================
+    
+    def on_selected_zoom_in(self):
+        """Zoom in on selected image"""
+        current_zoom = self.selected_zoom.get()
+        new_zoom = min(400, current_zoom + 10)
+        self.selected_zoom.set(new_zoom)
+        self.selected_zoom_label.configure(text=f"{int(new_zoom)}%")
+        if hasattr(self, 'current_preview_path'):
+            self.zoom_levels[self.current_preview_path] = new_zoom
+            self.show_selected_preview(self.current_preview_path)
+    
+    def on_selected_zoom_out(self):
+        """Zoom out on selected image"""
+        current_zoom = self.selected_zoom.get()
+        new_zoom = max(10, current_zoom - 10)
+        self.selected_zoom.set(new_zoom)
+        self.selected_zoom_label.configure(text=f"{int(new_zoom)}%")
+        if hasattr(self, 'current_preview_path'):
+            self.zoom_levels[self.current_preview_path] = new_zoom
+            self.show_selected_preview(self.current_preview_path)
+    
+    def on_selected_set_zoom_fit(self):
+        """Set selected image to fit mode"""
+        self.selected_zoom.set(100.0)
+        self.selected_zoom_label.configure(text="Fit")
+        if hasattr(self, 'current_preview_path'):
+            self.zoom_levels[self.current_preview_path] = 100.0
+            self.show_selected_preview_fit(self.current_preview_path)
+    
+    def on_selected_set_zoom_100(self):
+        """Set selected image to 100% zoom"""
+        self.selected_zoom.set(100.0)
+        self.selected_zoom_label.configure(text="100%")
+        if hasattr(self, 'current_preview_path'):
+            self.zoom_levels[self.current_preview_path] = 100.0
+            self.show_selected_preview(self.current_preview_path)
+    
+    def on_output_zoom_in(self):
+        """Zoom in on output preview"""
+        current_zoom = self.output_zoom.get()
+        new_zoom = min(400, current_zoom + 10)
+        self.output_zoom.set(new_zoom)
+        self.output_zoom_label.configure(text=f"{int(new_zoom)}%")
+        if hasattr(self, 'current_output_image'):
+            self.update_output_preview()
+    
+    def on_output_zoom_out(self):
+        """Zoom out on output preview"""
+        current_zoom = self.output_zoom.get()
+        new_zoom = max(10, current_zoom - 10)
+        self.output_zoom.set(new_zoom)
+        self.output_zoom_label.configure(text=f"{int(new_zoom)}%")
+        if hasattr(self, 'current_output_image'):
+            self.update_output_preview()
+    
+    def on_output_set_zoom_fit(self):
+        """Set output preview to fit mode"""
+        self.output_zoom.set(100.0)
+        self.output_zoom_label.configure(text="Fit")
+        self.update_output_preview()
+    
+    def on_output_set_zoom_100(self):
+        """Set output preview to 100% zoom"""
+        self.output_zoom.set(100.0)
+        self.output_zoom_label.configure(text="100%")
+        self.update_output_preview()
+    
     def on_combine_images(self):
         """Handle combine button click"""
         if not self.images:
@@ -837,6 +1041,12 @@ class ImageCombinerGUI:
         self.size_info_label.configure(text="No images loaded")
         self.selected_fullscreen_btn.configure(state=tk.DISABLED)
         self.output_fullscreen_btn.configure(state=tk.DISABLED)
+        # Reset zoom
+        self.selected_zoom.set(100.0)
+        self.output_zoom.set(100.0)
+        self.selected_zoom_label.configure(text="Fit")
+        self.output_zoom_label.configure(text="Fit")
+        self.zoom_levels.clear()
 
 # ==================== MAIN APPLICATION FUNCTIONS ====================
 

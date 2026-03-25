@@ -3,7 +3,7 @@ combine images horizontally or vertically
 
 
 Combine images into one file, initial version 
-combineimg.py
+combineimgv2.py
 
 
 Enhanced images combine function, added GUI and preview functions
