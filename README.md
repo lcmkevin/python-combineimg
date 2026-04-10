@@ -71,43 +71,43 @@ Shows detailed information for the currently selected image:
 
 ### Left Panel (Control & Information)
 ```
-┌─ Controls ──────────────────────┐
-│ Direction: ○ Horizontal ● Vertical │
+┌─ Controls ────────────────────────────┐
+│ Direction: ○ Horizontal ● Vertical    │
 │ [📁 Add Images] [🗑 Remove] [🗑 Clear] │
-├─ Image List ────────────────────┤
-│ image1.jpg (1920x1080)          │
-│ image2.jpg (1280x720)           │
-│ [↑ Move Up] [↓ Move Down]       │
-├─ Size Information ──────────────┤
-│ 📊 Total Original Size: 5.2 MB  │
-│ 🎨 Total Pixels: 3,932,160      │
-│ 💾 Estimated Output Size: ~1.5 MB│
-├─ File Information ──────────────┤
-│ 📷 image1.jpg                   │
-│ 📏 Original: 1920 x 1080 pixels │
-│ 📐 Displayed: 800 x 450 pixels  │
-│ 💾 File Size: 2.1 MB            │
-│ 🖱️ Use buttons or Ctrl+Scroll   │
-│ 💡 Hold Shift + Scroll          │
-└─────────────────────────────────┘
+├─ Image List ──────────────────────────┤
+│ image1.jpg (1920x1080)                │
+│ image2.jpg (1280x720)                 │
+│ [↑ Move Up] [↓ Move Down]             │
+├─ Size Information ────────────────────┤
+│ 📊 Total Original Size: 5.2 MB        │
+│ 🎨 Total Pixels: 3,932,160            │
+│ 💾 Estimated Output Size: ~1.5 MB     │
+├─ File Information ────────────────────┤
+│ 📷 image1.jpg                         │
+│ 📏 Original: 1920 x 1080 pixels       │
+│ 📐 Displayed: 800 x 450 pixels        │
+│ 💾 File Size: 2.1 MB                  │
+│ 🖱️ Use buttons or Ctrl+Scroll         │
+│ 💡 Hold Shift + Scroll                │
+└───────────────────────────────────────┘
 ```
 
 ### Right Panel (Preview & Controls)
 ```
 ┌─ Selected Image Preview ──────┬─ Output Preview ──────────┐
-│ [🔍 Full Screen] [🔍-] [Fit] [100%] [🔍+] [Fit] │
-│                              │                           │
-│        [Image Preview]       │    [Combined Preview]    │
-│                              │                           │
-├─ Preview Information ────────┴───────────────────────────┤
-│ 📐 Layout: 3 images horizontally                        │
-│ 📏 Output Dimensions: 4000 x 1080 pixels               │
-│ 🖱️ Use scrollbars to view full image                   │
-│ 💡 Hold Shift + Scroll for horizontal scrolling        │
-│ 🔍 Zoom: Fit | Use buttons or Ctrl+Scroll to zoom      │
-├──────────────────────────────────────────────────────────┤
-│                    [✨ COMBINE IMAGES ✨]                 │
-└──────────────────────────────────────────────────────────┘
+│ [🔍 Full Screen] [🔍-] [Fit] [100%] [🔍+] [Fit]          │
+│                              │                            │
+│        [Image Preview]       │    [Combined Preview]      │
+│                              │                            │
+├─ Preview Information ────────┴────────────────────────────┤
+│ 📐 Layout: 3 images horizontally                          │
+│ 📏 Output Dimensions: 4000 x 1080 pixels                  │
+│ 🖱️ Use scrollbars to view full image                      │
+│ 💡 Hold Shift + Scroll for horizontal scrolling           │
+│ 🔍 Zoom: Fit | Use buttons or Ctrl+Scroll to zoom         │
+├───────────────────────────────────────────────────────────┤
+│                    [✨ COMBINE IMAGES ✨]                │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ## 📋 How to Use
